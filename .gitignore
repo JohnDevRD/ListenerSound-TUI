@@ -44,4 +44,4 @@ bld/
 .DS_Store
 
 # Config with local paths (keep template, ignore personal edits)
-!client-config.json
+client-config.json
