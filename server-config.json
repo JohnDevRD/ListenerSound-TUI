@@ -1,0 +1,25 @@
+{
+  "Port": 5000,
+  "AudioFolder": "C:\\Audios",
+  "Clients": [
+    { "Id": "PC1", "AudioFile": "bienvenida.wav", "Description": "Mensaje de bienvenida" },
+    { "Id": "PC2", "AudioFile": "efecto_aplausos.mp3", "Description": "Aplausos" },
+    { "Id": "PC3", "AudioFile": "intro_musical.wav", "Description": "Intro musical" },
+    { "Id": "PC4", "AudioFile": "efecto_risas.mp3", "Description": "Risas" },
+    { "Id": "PC5", "AudioFile": "campana.wav", "Description": "Campana" },
+    { "Id": "PC6", "AudioFile": "tambores.mp3", "Description": "Redoble de tambores" },
+    { "Id": "PC7", "AudioFile": "silencio.wav", "Description": "Silencio incómodo" },
+    { "Id": "PC8", "AudioFile": "ovacion.mp3", "Description": "Ovación" },
+    { "Id": "PC9", "AudioFile": "bocina.wav", "Description": "Bocina de auto" },
+    { "Id": "PC10", "AudioFile": "golpe_metal.mp3", "Description": "Golpe metálico" },
+    { "Id": "PC11", "AudioFile": "alarma.wav", "Description": "Alarma" },
+    { "Id": "PC12", "AudioFile": "notificacion.mp3", "Description": "Notificación" },
+    { "Id": "PC13", "AudioFile": "fantasmal.wav", "Description": "Sonido fantasmal" },
+    { "Id": "PC14", "AudioFile": "drama.mp3", "Description": "Golpe dramático" },
+    { "Id": "PC15", "AudioFile": "final.wav", "Description": "Final" }
+  ],
+  "Schedules": [
+    { "Id": "S1", "AudioFile": "campana.wav", "Description": "Campana cada hora", "IntervalValue": 1, "IntervalUnit": "horas", "Enabled": true },
+    { "Id": "S2", "AudioFile": "notificacion.mp3", "Description": "Notif cada 30 min", "IntervalValue": 30, "IntervalUnit": "minutos", "Enabled": true }
+  ]
+}
