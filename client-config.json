@@ -1,0 +1,7 @@
+{
+  "ServerIp": "192.168.1.100",
+  "ServerPort": 5000,
+  "ClientId": "PC1",
+  "TriggerKey": "F8",
+  "Description": "Mensaje de bienvenida"
+}
