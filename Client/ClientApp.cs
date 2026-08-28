@@ -19,6 +19,8 @@ public class ClientApp
     private string _assignedAudio = "—";
     private string _lastEvent = "—";
     private bool _isConnected;
+    private WindowsTray? _tray;
+    private readonly SemaphoreSlim _sendGate = new(1, 1);
 
     public ClientApp(ClientConfig config, string configPath, string settingsPath)
     {
@@ -32,11 +34,18 @@ public class ClientApp
 
     public async Task RunAsync()
     {
+        // Icono en bandeja + tecla global que dispara desde cualquier app.
+        _tray = new WindowsTray(_config.TriggerKey);
+        _tray.HotkeyPressed += () => _ = SendTriggerAsync();
+        _tray.ExitRequested += () => _cts.Cancel();
+        _tray.Start();
+
         _ = ConnectWithRetryAsync();
 
         await ShowTuiAsync();
 
         _cts.Cancel();
+        _tray.Dispose();
         Disconnect();
     }
 
@@ -110,8 +119,10 @@ public class ClientApp
     {
         if (!_isConnected || _writer == null) return;
 
+        await _sendGate.WaitAsync();
         try
         {
+            if (_writer == null) return;
             await _writer.WriteLineAsync(Protocol.TriggerCommand);
             _lastEvent = $"[yellow]▶ Disparado ({DateTime.Now:HH:mm:ss})[/]";
             LogFile.Append($"TRIGGER enviado ({_config.ClientId})");
@@ -120,6 +131,10 @@ public class ClientApp
         {
             _isConnected = false;
             _status = "[red]Error de conexión[/]";
+        }
+        finally
+        {
+            _sendGate.Release();
         }
     }
 
@@ -162,6 +177,13 @@ public class ClientApp
                             }
                         }
                         catch (InvalidOperationException) { }
+
+                        // Si la consola está oculta en la bandeja, no intentar redibujar (evita errores).
+                        if (_tray != null && !_tray.IsConsoleVisible)
+                        {
+                            await Task.Delay(200);
+                            continue;
+                        }
 
                         ctx.UpdateTarget(BuildLayout());
                         ctx.Refresh();
@@ -217,6 +239,7 @@ public class ClientApp
                     var keyInfo = Console.ReadKey(true);
                     _config.TriggerKey = keyInfo.Key.ToString();
                     _triggerKey = keyInfo.Key;
+                    _tray?.SetHotkey(_config.TriggerKey);
                     AnsiConsole.MarkupLine($"[green]✓ Tecla cambiada a [yellow]{keyInfo.Key}[/][/]");
                     await WaitForKeyAsync();
                     break;
@@ -312,8 +335,9 @@ private async Task ChangeStartModeAsync()
 [bold]Tecla Disparo:[/] {_triggerKey}
 [bold]Último Evento:[/] {_lastEvent}
 
-[dim]Presione [yellow]{_triggerKey}[/] para disparar
-Presione [yellow]C[/] Config  |  [yellow]ESC[/] Salir[/]
+[dim]Presione [yellow]{_triggerKey}[/] para disparar (funciona desde cualquier ventana)
+C = Config  |  ESC = Salir
+Minimizar o cerrar oculta la ventana a la bandeja. Doble clic en el icono para volver.[/]
 ");
 
         return new Panel(Align.Center(content, VerticalAlignment.Middle))

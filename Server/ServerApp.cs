@@ -21,6 +21,7 @@ public class ServerApp
     private readonly object _logLock = new();
     private string[] _localIps = [];
     private readonly ConcurrentDictionary<string, DateTime> _lastSchedulePlay = [];
+    private WindowsTray? _tray;
 
     public ServerApp(ServerConfig config, string configPath, string settingsPath)
     {
@@ -31,6 +32,10 @@ public class ServerApp
 
     public async Task RunAsync()
     {
+        _tray = new WindowsTray();
+        _tray.ExitRequested += () => _cts.Cancel();
+        _tray.Start();
+
         _localIps = GetLocalIPv4Addresses();
 
         _listener = new TcpListener(IPAddress.Any, _config.Port);
@@ -46,6 +51,7 @@ public class ServerApp
         await ShowTuiAsync();
 
         _cts.Cancel();
+        _tray.Dispose();
         _listener.Stop();
         AddLog("[red]Servidor detenido[/]");
     }
@@ -291,6 +297,13 @@ public class ServerApp
                             }
                         }
                         catch (InvalidOperationException) { }
+
+                        // Si la consola está oculta en la bandeja, no intentar redibujar (evita errores).
+                        if (_tray != null && !_tray.IsConsoleVisible)
+                        {
+                            await Task.Delay(200);
+                            continue;
+                        }
 
                         ctx.UpdateTarget(BuildLayout());
                         ctx.Refresh();
@@ -750,7 +763,7 @@ private async Task ChangeStartModeAsync()
         }
 
         items.Add(new Rule());
-        items.Add(new Text("C: Config  |  ESC: Salir").Centered());
+        items.Add(new Markup("[dim]C = Config  |  ESC = Salir\nMinimizar o cerrar oculta la ventana a la bandeja. Doble clic en el icono para volver.[/]").Centered());
 
         return new Rows([.. items]);
     }

@@ -112,9 +112,18 @@ Cada PC cliente tiene su propio archivo de configuración:
 
 Presioná **C** dentro de la TUI (tanto en servidor como cliente) para abrir un menú interactivo donde podés modificar toda la configuración sin editar archivos JSON manualmente.
 
-## Teclas disponibles
+## Teclas disponibles y Disparo Global
 
-Cualquier `ConsoleKey` de .NET: `F1`-`F24`, `A`-`Z`, `D0`-`D9`, `Space`, `Enter`, `Up`, `Down`, etc.
+- Podés configurar cualquier `ConsoleKey` de .NET: `F1`-`F24`, `A`-`Z`, `0`-`9`, `Space`, `Enter`, `Tab`, etc.
+- **Disparo Global**: En el cliente, la tecla se registra globalmente en Windows mediante P/Invoke (`RegisterHotKey`). Podés disparar el audio mientras usás cualquier otra aplicación en pantalla completa o con foco (navegadores, juegos, presentaciones), sin necesidad de cambiar a la ventana de la consola.
+
+## Segundo Plano y Bandeja del Sistema (Tray)
+
+Tanto en modo **Servidor** como en modo **Cliente**, ListenerSound incluye integración nativa con la bandeja del sistema de Windows:
+
+- **Segundo plano**: Al minimizar la consola o hacer clic en el botón de cerrar (`X`), la ventana se oculta a la bandeja del sistema y continúa ejecutándose (el servidor sigue escuchando conexiones y el cliente sigue atento a los disparos).
+- **Restaurar ventana**: Hacé doble clic en el ícono de ListenerSound en la bandeja o clic derecho → *Abrir ListenerSound*.
+- **Cierre definitivo**: Presioná `ESC` dentro de la aplicación o usá clic derecho en el ícono de la bandeja → *Salir*.
 
 ## Programación de audios
 

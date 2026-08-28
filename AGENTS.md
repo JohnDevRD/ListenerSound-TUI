@@ -22,11 +22,12 @@ TUI rendered with Spectre.Console. Runtime is Windows-only (NAudio `WaveOutEvent
 - Config resolution: each config file is looked up **first next to the exe** (`AppContext.BaseDirectory`), then in the current working directory. If neither exists, a default config is created (bootstrap in `Program.cs`'s `EnsureConfigFile`). The resolved path is threaded into `ServerApp`/`ClientApp` so saving from the editor writes back to the same file.
 - Verification is `dotnet build` plus manual runs. **No tests, no CI, no lint/format tooling exists** — don't invent test commands.
 
-## Layout (all of the source is 6 files)
+## Layout (all of the source is 7 files)
 
 - `Program.cs` — mode selection (arg override, interactive first-run menu, or persisted mode from `app-settings.json`), config path resolution + default-config bootstrap, top-level error handling.
 - `Server/ServerApp.cs` — accept loop, client registry, NAudio playback, scheduler, server TUI + interactive config editor. Saving from the editor rewrites `server-config.json`, clears connected clients, and restarts the listener.
-- `Client/ClientApp.cs` — connect-with-retry (3 s backoff), key-trigger sender, client TUI + config editor.
+- `Client/ClientApp.cs` — connect-with-retry (3 s backoff), key-trigger sender, client TUI + config editor, background tray & global hotkey integration.
+- `Common/WindowsTray.cs` — Win32 P/Invoke wrapper (`user32`, `shell32`, `kernel32`) for global hotkeys (`RegisterHotKey`), system tray icon (`Shell_NotifyIcon`), and console visibility control (`SetConsoleCtrlHandler`, `ShowWindow`). Keeps the client running in background on minimize/close without WinForms dependencies.
 - `Common/Protocol.cs` — newline-delimited TCP text protocol (`REGISTER:<token>:<id>`, `TRIGGER`, `BYE`, `OK`, `ERROR:<msg>`). Shared by both sides; changing a constant silently breaks both ends together. Auth token is optional: empty token means no auth; if the server sets `AuthToken`, every client must match it (the `client-config.json` `AuthToken`). The server also enforces an optional IP allow-list (`AllowedIps` in `server-config.json`; empty = allow all).
 - `Common/AppSettings.cs` — persisted start mode (`app-settings.json`, `{ "Mode": ... }`). `GetMode` reads it, `SaveMode` writes it; both are hardened (never throw), and `SaveMode` is also called from the TUI config editor. `app-settings.json` is in the `.gitignore`. Its path is pinned to `AppContext.BaseDirectory` (with one-time migration from CWD) so read/write stay consistent regardless of how the app is launched.
 - `Common/LogFile.cs` — persistent file logger (`listenersound.log`, written next to the exe or CWD, 1 MB auto-rotation to `.old`). `LogFile.Append` never throws; `LogFile.StripMarkup` removes Spectre tags. `ServerApp.AddLog` mirrors each in-memory log entry to disk; the client logs connect/connect-error/trigger events.
