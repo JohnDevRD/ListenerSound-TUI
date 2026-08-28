@@ -97,7 +97,29 @@ public class ServerApp
             if (registerLine == null || !registerLine.StartsWith(Protocol.RegisterPrefix))
                 return;
 
-            var clientId = registerLine[Protocol.RegisterPrefix.Length..];
+            var (token, clientId) = Protocol.ParseRegister(registerLine);
+            if (clientId == null)
+            {
+                await writer.WriteLineAsync($"{Protocol.ErrorPrefix}:Registro inválido");
+                return;
+            }
+
+            // Validación de token (si está definido en server-config.json).
+            if (!string.IsNullOrEmpty(_config.AuthToken) && token != _config.AuthToken)
+            {
+                AddLog($"[red]Conexión rechazada[/]: token inválido desde [yellow]{ip}[/]");
+                await writer.WriteLineAsync($"{Protocol.ErrorPrefix}:Token inválido");
+                return;
+            }
+
+            // Validación de IP permitida (si se configuró allow-list).
+            if (_config.AllowedIps.Count > 0 && !_config.AllowedIps.Contains(ip))
+            {
+                AddLog($"[red]Conexión rechazada[/]: IP [yellow]{ip}[/] no permitida");
+                await writer.WriteLineAsync($"{Protocol.ErrorPrefix}:IP no permitida");
+                return;
+            }
+
             var mapping = _config.Clients.Find(c => c.Id == clientId);
 
             if (mapping == null)
@@ -286,7 +308,7 @@ public class ServerApp
 
     private async Task ShowConfigEditorAsync()
     {
-        var choices = new[] { "Agregar cliente", "Editar cliente", "Eliminar cliente", "Agregar programación", "Editar programación", "Eliminar programación", "Cambiar carpeta de audios", "Cambiar puerto", "Guardar y volver", "Salir sin guardar" };
+        var choices = new[] { "Agregar cliente", "Editar cliente", "Eliminar cliente", "Agregar programación", "Editar programación", "Eliminar programación", "Cambiar carpeta de audios", "Cambiar puerto", "Cambiar token de acceso", "Cambiar IPs permitidas", "Guardar y volver", "Salir sin guardar" };
 
         while (true)
         {
@@ -322,6 +344,12 @@ public class ServerApp
                     break;
                 case "Cambiar puerto":
                     await ChangePortAsync();
+                    break;
+                case "Cambiar token de acceso":
+                    await ChangeAuthTokenAsync();
+                    break;
+                case "Cambiar IPs permitidas":
+                    await ChangeAllowedIpsAsync();
                     break;
                 case "Guardar y volver":
                     await SaveConfigAsync();
@@ -432,6 +460,52 @@ public class ServerApp
         var port = AnsiConsole.Ask<int>("[bold]Puerto[/]:", _config.Port);
         _config.Port = port;
         AnsiConsole.MarkupLine($"[green]✓ Puerto cambiado a {port}[/]");
+        await WaitForKeyAsync();
+    }
+
+    private async Task ChangeAuthTokenAsync()
+    {
+        // Si ya hay un token configurado, ofrecer cambiar o desactivar de forma explícita
+        // (para que el usuario pueda vaciarlo sin tocar el JSON).
+        if (!string.IsNullOrEmpty(_config.AuthToken))
+        {
+            var action = AnsiConsole.Prompt(
+                new SelectionPrompt<string>()
+                    .Title($"[bold]Token actual: [yellow]{Markup.Escape(_config.AuthToken)}[/][/]")
+                    .AddChoices("Cambiar token", "Desactivar autenticación (vaciar token)", "Cancelar"));
+
+            if (action == "Cancelar") return;
+
+            if (action.StartsWith("Desactivar"))
+            {
+                _config.AuthToken = "";
+                AnsiConsole.MarkupLine("[yellow]Auth desactivada (token vacío)[/]");
+                await WaitForKeyAsync();
+                return;
+            }
+        }
+
+        var token = AnsiConsole.Ask<string>("[bold]Nuevo token de acceso[/] (Enter sin valor = cancelar):");
+        if (token.Length == 0)
+        {
+            AnsiConsole.MarkupLine("[yellow]Acción cancelada, token sin cambios[/]");
+            await WaitForKeyAsync();
+            return;
+        }
+
+        _config.AuthToken = token;
+        AnsiConsole.MarkupLine("[green]✓ Token de acceso actualizado[/]");
+        await WaitForKeyAsync();
+    }
+
+    private async Task ChangeAllowedIpsAsync()
+    {
+        var hint = _config.AllowedIps.Count > 0 ? string.Join(", ", _config.AllowedIps) : "(vacío = permitir todas)";
+        var input = AnsiConsole.Ask<string>("[bold]IPs permitidas[/] (separadas por coma):", hint);
+        _config.AllowedIps = input.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+        AnsiConsole.MarkupLine(_config.AllowedIps.Count == 0
+            ? "[yellow]Se permiten todas las IPs[/]"
+            : $"[green]✓ IPs permitidas actualizadas[/]");
         await WaitForKeyAsync();
     }
 

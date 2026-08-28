@@ -1,5 +1,9 @@
 {
   "Port": 5000,
+  "AuthToken": "",
+  "AllowedIps": [
+    "(vac\u00EDo = permitir todas)"
+  ],
   "AudioFolder": "C:\\Audios",
   "Clients": [
     {

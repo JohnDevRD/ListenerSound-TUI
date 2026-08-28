@@ -99,6 +99,8 @@ static string EnsureServerConfig()
     var defaultJson = """
     {
       "Port": 5000,
+      "AuthToken": "",
+      "AllowedIps": [],
       "AudioFolder": "audio",
       "Clients": [],
       "Schedules": []
@@ -114,6 +116,7 @@ static string EnsureClientConfig()
       "ServerIp": "127.0.0.1",
       "ServerPort": 5000,
       "ClientId": "PC1",
+      "AuthToken": "",
       "TriggerKey": "F4",
       "Description": "Cliente de ListenerSound"
     }

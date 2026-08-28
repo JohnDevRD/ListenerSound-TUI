@@ -22,6 +22,8 @@ public class AudioSchedule
 public class ServerConfig
 {
     public int Port { get; set; } = 5000;
+    public string AuthToken { get; set; } = "";
+    public List<string> AllowedIps { get; set; } = [];
     public string? AudioFolder { get; set; }
     public List<ClientMapping> Clients { get; set; } = [];
     public List<AudioSchedule> Schedules { get; set; } = [];
@@ -55,6 +57,7 @@ public class ClientConfig
     public string ServerIp { get; set; } = "127.0.0.1";
     public int ServerPort { get; set; } = 5000;
     public string ClientId { get; set; } = "";
+    public string AuthToken { get; set; } = "";
     public string TriggerKey { get; set; } = "F4";
     public string Description { get; set; } = "";
 }

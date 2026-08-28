@@ -2,6 +2,7 @@
   "ServerIp": "192.168.1.100",
   "ServerPort": 5000,
   "ClientId": "PC1",
+  "AuthToken": "",
   "TriggerKey": "F4",
   "Description": "Cambiar según tu PC"
 }

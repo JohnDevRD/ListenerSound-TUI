@@ -52,7 +52,7 @@ public class ClientApp
                 _writer = new StreamWriter(stream) { AutoFlush = true };
                 var reader = new StreamReader(stream);
 
-                await _writer.WriteLineAsync($"{Protocol.RegisterPrefix}{_config.ClientId}");
+                await _writer.WriteLineAsync(Protocol.BuildRegister(_config.AuthToken, _config.ClientId));
                 var response = await reader.ReadLineAsync();
 
                 if (response == null || response.StartsWith(Protocol.ErrorPrefix))
@@ -172,7 +172,7 @@ public class ClientApp
 
     private async Task ShowConfigEditorAsync()
     {
-        var choices = new[] { "Cambiar IP del servidor", "Cambiar puerto", "Cambiar ID de cliente", "Cambiar tecla de disparo", "Guardar y volver", "Salir sin guardar" };
+        var choices = new[] { "Cambiar IP del servidor", "Cambiar puerto", "Cambiar ID de cliente", "Cambiar token de acceso", "Cambiar tecla de disparo", "Guardar y volver", "Salir sin guardar" };
 
         while (true)
         {
@@ -203,6 +203,9 @@ public class ClientApp
                     AnsiConsole.MarkupLine($"[green]✓ ID cambiado a '{id}'[/]");
                     await WaitForKeyAsync();
                     break;
+                case "Cambiar token de acceso":
+                    await ChangeAuthTokenAsync();
+                    break;
                 case "Cambiar tecla de disparo":
                     AnsiConsole.MarkupLine("\n[bold]Presione la tecla que desea usar para disparar...[/]");
                     while (!Console.KeyAvailable) await Task.Delay(50);
@@ -219,6 +222,39 @@ public class ClientApp
                     return;
             }
         }
+    }
+
+    private async Task ChangeAuthTokenAsync()
+    {
+        if (!string.IsNullOrEmpty(_config.AuthToken))
+        {
+            var action = AnsiConsole.Prompt(
+                new SelectionPrompt<string>()
+                    .Title("[bold]Token actual configurado[/]")
+                    .AddChoices("Cambiar token", "Desactivar autenticación (vaciar token)", "Cancelar"));
+
+            if (action == "Cancelar") return;
+
+            if (action.StartsWith("Desactivar"))
+            {
+                _config.AuthToken = "";
+                AnsiConsole.MarkupLine("[yellow]Auth desactivada (token vacío)[/]");
+                await WaitForKeyAsync();
+                return;
+            }
+        }
+
+        var token = AnsiConsole.Ask<string>("[bold]Nuevo token de acceso[/] (Enter sin valor = cancelar):");
+        if (token.Length == 0)
+        {
+            AnsiConsole.MarkupLine("[yellow]Acción cancelada, token sin cambios[/]");
+            await WaitForKeyAsync();
+            return;
+        }
+
+        _config.AuthToken = token;
+        AnsiConsole.MarkupLine("[green]✓ Token de acceso actualizado[/]");
+        await WaitForKeyAsync();
     }
 
     private async Task SaveConfigAsync()
