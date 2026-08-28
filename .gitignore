@@ -45,4 +45,10 @@ bld/
 
 # Config with local paths (keep template, ignore personal edits)
 client-config.json
+app-settings.json
+listenersound.log
+listenersound.log.old
 .atl/
+
+# Distribución empaquetada (exe autocontenido listo para copiar)
+distribucion/

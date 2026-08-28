@@ -9,6 +9,7 @@ public class ClientApp
 {
     private readonly ClientConfig _config;
     private readonly string _configPath;
+    private readonly string _settingsPath;
     private ConsoleKey _triggerKey;
     private TcpClient? _tcpClient;
     private StreamWriter? _writer;
@@ -19,10 +20,11 @@ public class ClientApp
     private string _lastEvent = "—";
     private bool _isConnected;
 
-    public ClientApp(ClientConfig config, string configPath)
+    public ClientApp(ClientConfig config, string configPath, string settingsPath)
     {
         _config = config;
         _configPath = configPath;
+        _settingsPath = settingsPath;
         _triggerKey = Enum.TryParse<ConsoleKey>(config.TriggerKey, true, out var key)
             ? key
             : ConsoleKey.F4;
@@ -67,6 +69,7 @@ public class ClientApp
                 _isConnected = true;
                 _status = "[green]Conectado[/]";
                 _lastEvent = "[green]Listo[/]";
+                LogFile.Append($"Cliente '{_config.ClientId}' conectado. Audio asignado: {response[3..]}");
 
                 _ = ReadLoopAsync(reader);
 
@@ -76,6 +79,7 @@ public class ClientApp
             {
                 _status = $"[red]Sin conexión: {ex.Message}[/]";
                 _isConnected = false;
+                LogFile.Append($"Error de conexión: {ex.Message}");
                 await Task.Delay(3000);
             }
         }
@@ -110,6 +114,7 @@ public class ClientApp
         {
             await _writer.WriteLineAsync(Protocol.TriggerCommand);
             _lastEvent = $"[yellow]▶ Disparado ({DateTime.Now:HH:mm:ss})[/]";
+            LogFile.Append($"TRIGGER enviado ({_config.ClientId})");
         }
         catch
         {
@@ -172,7 +177,7 @@ public class ClientApp
 
     private async Task ShowConfigEditorAsync()
     {
-        var choices = new[] { "Cambiar IP del servidor", "Cambiar puerto", "Cambiar ID de cliente", "Cambiar token de acceso", "Cambiar tecla de disparo", "Guardar y volver", "Salir sin guardar" };
+        var choices = new[] { "Cambiar IP del servidor", "Cambiar puerto", "Cambiar ID de cliente", "Cambiar token de acceso", "Cambiar tecla de disparo", "Cambiar modo de inicio (Servidor/Cliente)", "Guardar y volver", "Salir sin guardar" };
 
         while (true)
         {
@@ -214,6 +219,9 @@ public class ClientApp
                     _triggerKey = keyInfo.Key;
                     AnsiConsole.MarkupLine($"[green]✓ Tecla cambiada a [yellow]{keyInfo.Key}[/][/]");
                     await WaitForKeyAsync();
+                    break;
+case "Cambiar modo de inicio (Servidor/Cliente)":
+                    await ChangeStartModeAsync();
                     break;
                 case "Guardar y volver":
                     await SaveConfigAsync();
@@ -257,6 +265,26 @@ public class ClientApp
         await WaitForKeyAsync();
     }
 
+private async Task ChangeStartModeAsync()
+    {
+        var currentMode = AppSettings.GetMode(_settingsPath);
+        var currentLabel = currentMode == "client" ? "Cliente" : "Servidor";
+
+        var action = AnsiConsole.Prompt(
+            new SelectionPrompt<string>()
+                .Title($"[bold]Modo de inicio actual: [cyan]{currentLabel}[/][/]")
+                .AddChoices("Cambiar a Servidor", "Cambiar a Cliente", "Cancelar"));
+
+        if (action == "Cancelar") return;
+
+        var newMode = action == "Cambiar a Servidor" ? "server" : "client";
+        AppSettings.SaveMode(_settingsPath, newMode);
+
+        var newLabel = action == "Cambiar a Servidor" ? "Servidor" : "Cliente";
+        AnsiConsole.MarkupLine($"[green]✓ Modo de inicio cambiado a [cyan]{newLabel}[/][/]");
+        AnsiConsole.MarkupLine("[yellow]Reinicie ListenerSound para aplicar el cambio.[/]");
+        await WaitForKeyAsync();
+    }
     private async Task SaveConfigAsync()
     {
         var json = System.Text.Json.JsonSerializer.Serialize(_config, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });

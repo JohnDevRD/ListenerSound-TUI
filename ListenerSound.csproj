@@ -5,6 +5,8 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <!-- Icono de la aplicación (recurso Win32 del exe). -->
+    <ApplicationIcon>assets\megaphone.ico</ApplicationIcon>
     <!-- Publicación autocontenida: el exe incluye el runtime de .NET (no requiere instalación del SDK en la máquina destino). -->
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <SelfContained>true</SelfContained>

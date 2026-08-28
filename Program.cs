@@ -2,6 +2,7 @@
 using ListenerSound.Models;
 using ListenerSound.Server;
 using ListenerSound.Client;
+using ListenerSound.Common;
 
 Console.Title = "ListenerSound";
 
@@ -9,20 +10,35 @@ string? mode;
 
 if (args.Length == 0)
 {
-    AnsiConsole.Write(new FigletText("ListenerSound").Color(Color.Aqua).Centered());
-    var choice = AnsiConsole.Prompt(
-        new SelectionPrompt<string>()
-            .Title("[bold]Seleccione el modo de inicio:[/]")
-            .AddChoices("Servidor", "Cliente", "Salir"));
+    var savedMode = AppSettings.GetMode(GetSettingsPath());
 
-    mode = choice switch
+    if (savedMode == "server" || savedMode == "client")
     {
-        "Servidor" => "server",
-        "Cliente"  => "client",
-        _          => null
-    };
+        // Modo ya guardado desde una ejecución anterior: arrancar directo sin preguntar.
+        mode = savedMode;
+    }
+    else
+    {
+        AnsiConsole.Write(new FigletText("ListenerSound").Color(Color.Aqua).Centered());
+        var choice = AnsiConsole.Prompt(
+            new SelectionPrompt<string>()
+                .Title("[bold]Seleccione el modo de inicio:[/]")
+                .AddChoices("Servidor", "Cliente", "Salir"));
 
-    if (mode == null) return;
+        mode = choice switch
+        {
+            "Servidor" => "server",
+            "Cliente"  => "client",
+            _          => null
+        };
+
+        if (mode == null) return;
+
+        // Persistir el modo elegido para los próximos arranques.
+        AppSettings.SaveMode(GetSettingsPath(), mode);
+        AnsiConsole.MarkupLine($"[yellow]Modo guardado: [cyan]{choice}[/] (se abrirá directo la próxima vez).[/]");
+        await Task.Delay(800);
+    }
 }
 else
 {
@@ -32,10 +48,11 @@ else
 if (mode == "server")
 {
     var configPath = EnsureServerConfig();
+    var settingsPath = GetSettingsPath();
     try
     {
         var config = ConfigLoader.LoadServerConfig(configPath);
-        var server = new ServerApp(config, configPath);
+        var server = new ServerApp(config, configPath, settingsPath);
         await server.RunAsync();
     }
     catch (Exception ex)
@@ -46,10 +63,11 @@ if (mode == "server")
 else if (mode == "client")
 {
     var configPath = EnsureClientConfig();
+    var settingsPath = GetSettingsPath();
     try
     {
         var config = ConfigLoader.LoadClientConfig(configPath);
-        var client = new ClientApp(config, configPath);
+        var client = new ClientApp(config, configPath, settingsPath);
         await client.RunAsync();
     }
     catch (Exception ex)
@@ -60,6 +78,26 @@ else if (mode == "client")
 else
 {
     AnsiConsole.MarkupLine($"[red]Error:[/] Modo desconocido '[yellow]{mode}[/]'. Use [cyan]server[/] o [cyan]client[/].");
+}
+
+// Ruta del archivo de ajustes de la aplicación. Se fija SIEMPRE en la carpeta del
+// ejecutable (AppContext.BaseDirectory) para que leer y guardar sean consistentes,
+// sin importar desde dónde se lance la app (dotnet run, doble clic u otra terminal).
+// Si aún existe un app-settings.json en el directorio de trabajo (versiones anteriores),
+// se migra automáticamente a la carpeta del exe.
+static string GetSettingsPath()
+{
+    var exePath = Path.Combine(AppContext.BaseDirectory, "app-settings.json");
+    if (File.Exists(exePath)) return exePath;
+
+    var legacy = Path.Combine(Directory.GetCurrentDirectory(), "app-settings.json");
+    if (File.Exists(legacy))
+    {
+        try { File.Move(legacy, exePath); return exePath; }
+        catch { }
+    }
+
+    return exePath;
 }
 
 // Busca el archivo de configuración primero junto al ejecutable (carpeta del exe)

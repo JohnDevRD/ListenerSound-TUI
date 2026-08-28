@@ -13,6 +13,7 @@ public class ServerApp
 {
     private readonly ServerConfig _config;
     private readonly string _configPath;
+    private readonly string _settingsPath;
     private TcpListener? _listener;
     private CancellationTokenSource _cts = new();
     private readonly ConcurrentDictionary<string, ClientState> _clients = [];
@@ -21,10 +22,11 @@ public class ServerApp
     private string[] _localIps = [];
     private readonly ConcurrentDictionary<string, DateTime> _lastSchedulePlay = [];
 
-    public ServerApp(ServerConfig config, string configPath)
+    public ServerApp(ServerConfig config, string configPath, string settingsPath)
     {
         _config = config;
         _configPath = configPath;
+        _settingsPath = settingsPath;
     }
 
     public async Task RunAsync()
@@ -257,6 +259,7 @@ public class ServerApp
             if (_logEntries.Count > 100)
                 _logEntries.RemoveAt(0);
         }
+        LogFile.Append(LogFile.StripMarkup($"{DateTime.Now:HH:mm:ss} {message}"));
     }
 
     private async Task ShowTuiAsync()
@@ -308,7 +311,7 @@ public class ServerApp
 
     private async Task ShowConfigEditorAsync()
     {
-        var choices = new[] { "Agregar cliente", "Editar cliente", "Eliminar cliente", "Agregar programación", "Editar programación", "Eliminar programación", "Cambiar carpeta de audios", "Cambiar puerto", "Cambiar token de acceso", "Cambiar IPs permitidas", "Guardar y volver", "Salir sin guardar" };
+        var choices = new[] { "Agregar cliente", "Editar cliente", "Eliminar cliente", "Agregar programación", "Editar programación", "Eliminar programación", "Cambiar carpeta de audios", "Cambiar puerto", "Cambiar token de acceso", "Cambiar IPs permitidas", "Cambiar modo de inicio (Servidor/Cliente)", "Guardar y volver", "Salir sin guardar" };
 
         while (true)
         {
@@ -350,6 +353,9 @@ public class ServerApp
                     break;
                 case "Cambiar IPs permitidas":
                     await ChangeAllowedIpsAsync();
+                    break;
+                case "Cambiar modo de inicio (Servidor/Cliente)":
+                    await ChangeStartModeAsync();
                     break;
                 case "Guardar y volver":
                     await SaveConfigAsync();
@@ -509,6 +515,26 @@ public class ServerApp
         await WaitForKeyAsync();
     }
 
+private async Task ChangeStartModeAsync()
+    {
+        var currentMode = AppSettings.GetMode(_settingsPath);
+        var currentLabel = currentMode == "client" ? "Cliente" : "Servidor";
+
+        var action = AnsiConsole.Prompt(
+            new SelectionPrompt<string>()
+                .Title($"[bold]Modo de inicio actual: [cyan]{currentLabel}[/][/]")
+                .AddChoices("Cambiar a Servidor", "Cambiar a Cliente", "Cancelar"));
+
+        if (action == "Cancelar") return;
+
+        var newMode = action == "Cambiar a Servidor" ? "server" : "client";
+        AppSettings.SaveMode(_settingsPath, newMode);
+
+        var newLabel = action == "Cambiar a Servidor" ? "Servidor" : "Cliente";
+        AnsiConsole.MarkupLine($"[green]✓ Modo de inicio cambiado a [cyan]{newLabel}[/][/]");
+        AnsiConsole.MarkupLine("[yellow]Reinicie ListenerSound para aplicar el cambio.[/]");
+        await WaitForKeyAsync();
+    }
     private async Task AddScheduleAsync()
     {
         var id = AnsiConsole.Ask<string>("[bold]ID de la programación[/] (ej: S1):");
