@@ -8,6 +8,7 @@ namespace ListenerSound.Client;
 public class ClientApp
 {
     private readonly ClientConfig _config;
+    private readonly string _configPath;
     private ConsoleKey _triggerKey;
     private TcpClient? _tcpClient;
     private StreamWriter? _writer;
@@ -18,9 +19,10 @@ public class ClientApp
     private string _lastEvent = "—";
     private bool _isConnected;
 
-    public ClientApp(ClientConfig config)
+    public ClientApp(ClientConfig config, string configPath)
     {
         _config = config;
+        _configPath = configPath;
         _triggerKey = Enum.TryParse<ConsoleKey>(config.TriggerKey, true, out var key)
             ? key
             : ConsoleKey.F4;
@@ -222,7 +224,7 @@ public class ClientApp
     private async Task SaveConfigAsync()
     {
         var json = System.Text.Json.JsonSerializer.Serialize(_config, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
-        await File.WriteAllTextAsync("client-config.json", json);
+        await File.WriteAllTextAsync(_configPath, json);
         AnsiConsole.MarkupLine("[green]✓ Configuración guardada[/]");
         await Task.Delay(500);
         _isConnected = false;

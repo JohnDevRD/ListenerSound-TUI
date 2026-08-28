@@ -45,3 +45,4 @@ bld/
 
 # Config with local paths (keep template, ignore personal edits)
 client-config.json
+.atl/

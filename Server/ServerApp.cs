@@ -12,6 +12,7 @@ namespace ListenerSound.Server;
 public class ServerApp
 {
     private readonly ServerConfig _config;
+    private readonly string _configPath;
     private TcpListener? _listener;
     private CancellationTokenSource _cts = new();
     private readonly ConcurrentDictionary<string, ClientState> _clients = [];
@@ -20,9 +21,10 @@ public class ServerApp
     private string[] _localIps = [];
     private readonly ConcurrentDictionary<string, DateTime> _lastSchedulePlay = [];
 
-    public ServerApp(ServerConfig config)
+    public ServerApp(ServerConfig config, string configPath)
     {
         _config = config;
+        _configPath = configPath;
     }
 
     public async Task RunAsync()
@@ -545,7 +547,7 @@ public class ServerApp
     private async Task SaveConfigAsync()
     {
         var json = System.Text.Json.JsonSerializer.Serialize(_config, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
-        await File.WriteAllTextAsync("server-config.json", json);
+        await File.WriteAllTextAsync(_configPath, json);
         AnsiConsole.MarkupLine("[green]✓ Configuración guardada[/]");
         await Task.Delay(500);
     }
