@@ -40,7 +40,7 @@ public class ClientApp
         _tray.ExitRequested += () => _cts.Cancel();
         _tray.Start();
 
-        _ = ConnectWithRetryAsync();
+        _ = ConnectionLoopAsync();
 
         await ShowTuiAsync();
 
@@ -49,7 +49,7 @@ public class ClientApp
         Disconnect();
     }
 
-    private async Task ConnectWithRetryAsync()
+    private async Task ConnectionLoopAsync()
     {
         while (!_cts.IsCancellationRequested)
         {
@@ -57,20 +57,20 @@ public class ClientApp
             {
                 Disconnect();
                 _tcpClient = new TcpClient();
-                await _tcpClient.ConnectAsync(_config.ServerIp, _config.ServerPort);
+                await _tcpClient.ConnectAsync(_config.ServerIp, _config.ServerPort, _cts.Token);
 
                 var stream = _tcpClient.GetStream();
                 _writer = new StreamWriter(stream) { AutoFlush = true };
                 var reader = new StreamReader(stream);
 
                 await _writer.WriteLineAsync(Protocol.BuildRegister(_config.AuthToken, _config.ClientId));
-                var response = await reader.ReadLineAsync();
+                var response = await reader.ReadLineAsync(_cts.Token);
 
                 if (response == null || response.StartsWith(Protocol.ErrorPrefix))
                 {
                     _status = $"[red]Error: {response?[6..] ?? "Sin respuesta"}[/]";
-                    _tcpClient.Close();
-                    await Task.Delay(3000);
+                    Disconnect();
+                    await Task.Delay(3000, _cts.Token);
                     continue;
                 }
 
@@ -80,39 +80,45 @@ public class ClientApp
                 _lastEvent = "[green]Listo[/]";
                 LogFile.Append($"Cliente '{_config.ClientId}' conectado. Audio asignado: {response[3..]}");
 
-                _ = ReadLoopAsync(reader);
+                while (!_cts.IsCancellationRequested && _tcpClient?.Connected == true)
+                {
+                    var line = await reader.ReadLineAsync(_cts.Token);
+                    if (line == null) break;
 
-                return;
+                    if (line == Protocol.OkPrefix)
+                        _lastEvent = "[green]✓ Audio disparado[/]";
+                    else if (line.StartsWith(Protocol.ErrorPrefix))
+                        _lastEvent = $"[red]✗ {line[6..]}[/]";
+                }
+            }
+            catch (OperationCanceledException) when (_cts.IsCancellationRequested)
+            {
+                break;
             }
             catch (Exception ex)
             {
                 _status = $"[red]Sin conexión: {ex.Message}[/]";
-                _isConnected = false;
                 LogFile.Append($"Error de conexión: {ex.Message}");
-                await Task.Delay(3000);
             }
-        }
-    }
-
-    private async Task ReadLoopAsync(StreamReader reader)
-    {
-        try
-        {
-            while (!_cts.IsCancellationRequested && _tcpClient?.Connected == true)
+            finally
             {
-                var line = await reader.ReadLineAsync();
-                if (line == null) break;
+                _isConnected = false;
+                Disconnect();
+            }
 
-                if (line == Protocol.OkPrefix)
-                    _lastEvent = "[green]✓ Audio disparado[/]";
-                else if (line.StartsWith(Protocol.ErrorPrefix))
-                    _lastEvent = $"[red]✗ {line[6..]}[/]";
+            if (!_cts.IsCancellationRequested)
+            {
+                _status = "[yellow]Reconectando...[/]";
+                try
+                {
+                    await Task.Delay(3000, _cts.Token);
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
             }
         }
-        catch { }
-
-        _isConnected = false;
-        _status = "[yellow]Reconectando...[/]";
     }
 
     private async Task SendTriggerAsync()
@@ -127,10 +133,11 @@ public class ClientApp
             _lastEvent = $"[yellow]▶ Disparado ({DateTime.Now:HH:mm:ss})[/]";
             LogFile.Append($"TRIGGER enviado ({_config.ClientId})");
         }
-        catch
+        catch (Exception ex)
         {
             _isConnected = false;
-            _status = "[red]Error de conexión[/]";
+            _status = $"[red]Error de conexión: {ex.Message}[/]";
+            Disconnect();
         }
         finally
         {
