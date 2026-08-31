@@ -21,6 +21,7 @@ public class ServerApp
     private readonly object _logLock = new();
     private string[] _localIps = [];
     private readonly ConcurrentDictionary<string, DateTime> _lastSchedulePlay = [];
+    private readonly SemaphoreSlim _audioGate = new(1, 1);
     private WindowsTray? _tray;
 
     public ServerApp(ServerConfig config, string configPath, string settingsPath)
@@ -176,34 +177,64 @@ public class ServerApp
     {
         if (_clients.TryGetValue(clientId, out var state))
         {
-            state.Status = "[yellow]▶ Reproduciendo[/]";
+            state.Status = "[yellow]⏳ En cola[/]";
             state.LastTrigger = DateTime.Now.ToString("HH:mm:ss");
         }
 
         var audioName = Path.GetFileName(mapping.AudioFile);
-        AddLog($"'{clientId}' [yellow]▶[/] [cyan]{audioName}[/]");
+        var fullPath = _config.GetFullAudioPath(mapping);
 
         try
         {
+            await _audioGate.WaitAsync(_cts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+
+        try
+        {
+            if (_clients.TryGetValue(clientId, out state))
+            {
+                state.Status = "[yellow]▶ Reproduciendo[/]";
+            }
+
+            AddLog($"'{clientId}' [yellow]▶[/] [cyan]{audioName}[/]");
             await writer.WriteLineAsync(Protocol.OkPrefix);
 
-            using var reader = new AudioFileReader(_config.GetFullAudioPath(mapping));
-            using var waveOut = new WaveOutEvent();
-            waveOut.Init(reader);
-            waveOut.Play();
-
-            while (waveOut.PlaybackState == PlaybackState.Playing && !_cts.IsCancellationRequested)
+            if (!File.Exists(fullPath))
             {
-                await Task.Delay(100);
+                AddLog($"[red]Error[/]: archivo no encontrado [yellow]{fullPath}[/]");
+                return;
+            }
+
+            // Silencia/reduce las demás aplicaciones de Windows mientras se reproduce el audio
+            using (SystemAudioDucker.DuckOtherApplications())
+            {
+                using var reader = new AudioFileReader(fullPath);
+                using var waveOut = new WaveOutEvent();
+                waveOut.Init(reader);
+                waveOut.Play();
+
+                while (waveOut.PlaybackState == PlaybackState.Playing && !_cts.IsCancellationRequested)
+                {
+                    await Task.Delay(50);
+                }
             }
         }
         catch (Exception ex)
         {
             AddLog($"[red]Error[/] reproduciendo '{audioName}': {ex.Message}");
         }
-
-        if (_clients.TryGetValue(clientId, out var s))
-            s.Status = "[green]Conectado[/]";
+        finally
+        {
+            if (_clients.TryGetValue(clientId, out var s) && s.Status == "[yellow]▶ Reproduciendo[/]")
+            {
+                s.Status = "[green]Conectado[/]";
+            }
+            _audioGate.Release();
+        }
     }
 
     private async Task RunSchedulesAsync()
@@ -237,22 +268,41 @@ public class ServerApp
             return;
         }
 
-        AddLog($"⏰ [cyan]{schedule.Description}[/]");
+        try
+        {
+            await _audioGate.WaitAsync(_cts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
 
         try
         {
-            using var reader = new AudioFileReader(fullPath);
-            using var waveOut = new WaveOutEvent();
-            waveOut.Init(reader);
-            waveOut.Play();
-            while (waveOut.PlaybackState == PlaybackState.Playing && !_cts.IsCancellationRequested)
-                await Task.Delay(100);
+            AddLog($"⏰ [cyan]{schedule.Description}[/]");
+
+            using (SystemAudioDucker.DuckOtherApplications())
+            {
+                using var reader = new AudioFileReader(fullPath);
+                using var waveOut = new WaveOutEvent();
+                waveOut.Init(reader);
+                waveOut.Play();
+
+                while (waveOut.PlaybackState == PlaybackState.Playing && !_cts.IsCancellationRequested)
+                {
+                    await Task.Delay(50);
+                }
+            }
         }
         catch (Exception ex)
         {
             var msg = ex.Message.Split('\n')[0].Trim();
             AddLog($"[red]Error[/] '{schedule.Description}': {msg}");
             schedule.Enabled = false;
+        }
+        finally
+        {
+            _audioGate.Release();
         }
     }
 
